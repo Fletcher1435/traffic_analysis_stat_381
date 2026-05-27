@@ -1,0 +1,350 @@
+---
+title: "STAT 381 Final Project"
+output: pdf_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+```
+# 1. Data Cleaning
+## Read in data, remove unwanted variables, convert categorical features to factors and quantitative features to numerics. 
+```{r}
+library(dplyr)
+library(readxl)
+library(forcats)
+#Read in Data
+injury_data <- read_excel("Ped_Injury.xlsx")
+
+#Remove meaningless features
+injury_data <- subset(injury_data, select = -c(Sno., 
+                                               ProjectSiteId, 
+                                               CrashId, 
+                                               VehicleId, 
+                                               PEDESTRIAN_PersonId.x, 
+                                               NETWORK_MedianType, 
+                                               VEHICLE_Vehicle.Model.Year, 
+                                               VEHICLE_Total.Lanes.In.Roadway, 
+                                               VEHICLE_Roadway.Alignment, 
+                                               VEHICLE_Traffic.Control.Device.Type, 
+                                               DRIVER_Age.y, 
+                                               NETWORK_SpeedChangeLane, 
+                                               NETWORK_LaneWidth, 
+                                               `Front bumper height`,
+                                               PEDESTRIAN_Injury_Severity_KA2.BC1.O0))
+
+#Convert all categorical features to factors
+injury_data <- injury_data %>% 
+  mutate(across(-c(PEDESTRIAN_Age.x, NETWORK_NumberOfThruLanes), as.factor))
+
+#Convert all quantitative features to numerics
+injury_data$PEDESTRIAN_Age.x <- as.numeric(injury_data$PEDESTRIAN_Age.x)
+injury_data$NETWORK_NumberOfThruLanes <- as.numeric(injury_data$NETWORK_NumberOfThruLanes)
+
+```
+
+## Modify each variable independently
+```{r}
+###Clean ALL Predictors
+
+#PEDESTRIAN_Condition.at.Time.of.Crach
+#Add NA to the unknown category
+injury_data <- injury_data %>%
+  mutate(PEDESTRIAN_Condition.at.Time.of.Crash = fct_na_value_to_level(PEDESTRIAN_Condition.at.Time.of.Crash, level = "Unknown"))
+#Add Other and Not Applicable to the Unknown category
+injury_data <- injury_data %>%
+  mutate(PEDESTRIAN_Condition.at.Time.of.Crash = recode(PEDESTRIAN_Condition.at.Time.of.Crash, 
+                                                        "Other" = "Unknown",
+                                                        "Not Applicable" = "Unknown"))
+#Collapse appropriate categories and rename
+injury_data$PEDESTRIAN_Condition.at.Time.of.Crash <- fct_collapse(injury_data$PEDESTRIAN_Condition.at.Time.of.Crash,
+                                                                  Normal = c("Apparently Normal"),
+                                                                  Intoxicated = c("Under the Influence of Medications/Drugs/Alcohol"),
+                                                                  Emotional = c("Emotional (depressed, angry, disturbed, etc.)"))
+
+
+#PEDESTRIAN_Actions.Prior.to.Crash
+#Add NA to the unknown category
+injury_data <- injury_data %>%
+  mutate(PEDESTRIAN_Actions.Prior.to.Crash = fct_na_value_to_level(PEDESTRIAN_Actions.Prior.to.Crash, level = "Unknown"))
+#Add Other, In Roadway - Other, and None to Unknown category
+injury_data <- injury_data %>%
+  mutate(PEDESTRIAN_Actions.Prior.to.Crash = recode(PEDESTRIAN_Actions.Prior.to.Crash, 
+                                                    "In Roadway - Other" = "Unknown",
+                                                    "Other" = "Unknown",
+                                                    "None" = "Unknown"))
+#Collapse and rename appropriate categories
+injury_data$PEDESTRIAN_Actions.Prior.to.Crash <- fct_collapse(injury_data$PEDESTRIAN_Actions.Prior.to.Crash,
+                                                              Crossing = c("Crossing Roadway", "Waiting to Cross Roadway"),
+                                                              `Moving Along Roadway` = c("Walking/Cycling along Roadway Against Traffic (In or Adjacent to Travel Lane)", "Walking/Cycling along Roadway Along Traffic (In or Adjacent to Travel Lane)", "Walking/Cycling on Sidewalk", "Adjacent to Roadway (e.g., Shoulder, Median)"),
+                                                              `Working in Trafficway` = c("Working in Trafficway for Incident Response"))
+#PEDESTRIAN_Actions.At.Time.Of.Crash
+#Add NA to the unknown category
+injury_data <- injury_data %>%
+  mutate(PEDESTRIAN_Actions.At.Time.Of.Crash = fct_na_value_to_level(PEDESTRIAN_Actions.At.Time.Of.Crash, level = "Unknown"))
+#Add Other, Not Applicable, and Not Visible to unknown
+injury_data <- injury_data %>%
+  mutate(PEDESTRIAN_Actions.At.Time.Of.Crash = recode(PEDESTRIAN_Actions.At.Time.Of.Crash,
+                                                      "Other" = "Unknown",
+                                                      "Not Visible (Dark Clothing, No Lighting, etc.)" = "Unknown",
+                                                      "Not Applicable" = "Unknown"))
+
+#PEDESTRIAN_Location.At.Time.Of.Crash
+#Add NA to the Unknown category
+injury_data <- injury_data %>%
+  mutate(PEDESTRIAN_Location.At.Time.Of.Crash = fct_na_value_to_level(PEDESTRIAN_Location.At.Time.Of.Crash, level = "Unknown"))
+#Add Other to unknown
+injury_data <- injury_data %>%
+  mutate(PEDESTRIAN_Location.At.Time.Of.Crash = recode(PEDESTRIAN_Location.At.Time.Of.Crash,
+                                                       "Other" = "Unknown"))
+#Collapse and rename appropriate categories
+injury_data$PEDESTRIAN_Location.At.Time.Of.Crash <- fct_collapse(injury_data$PEDESTRIAN_Location.At.Time.Of.Crash,
+                                                                 Intersection = c("Intersection-Marked Crosswalk", "Intersection-Unmarked Crosswalk", "Intersection – Other"),
+                                                                 `Midblock / Travelway` = c("Travel Lane-Other Location", "Midblock-Marked Crosswalk", "Shoulder/Roadside", "Median/Crossing Island"),
+                                                                 `Off-road / Non-traffic facility` = c("Sidewalk", "Shared-Use Path or Trail", "Non-Trafficway Area", "Driveway Access"),
+                                                                 `Bicycle facility` = c("Bicycle Lane", "Sharrow"))
+#PEDESTRIAN_Distracted
+#Add NA to the Unknown category
+injury_data <- injury_data %>%
+  mutate(PEDESTRIAN_Distracted = fct_na_value_to_level(PEDESTRIAN_Distracted, level = "Unknown if Distracted"))
+#Combine all categories into Not Distracted, Distracted, Unknown if Distracted
+injury_data$PEDESTRIAN_Distracted <- fct_other(injury_data$PEDESTRIAN_Distracted, keep = c("Not Distracted", "Unknown if Distracted", other_level = "Distracted"))
+#Rename Other to Distracted
+injury_data <- injury_data %>%
+  mutate(PEDESTRIAN_Distracted = recode(PEDESTRIAN_Distracted,
+                                        "Other" = "Distracted"))
+
+#CRASH_Route.Class
+#Add NA to the Unknown Cateogry
+injury_data <- injury_data %>%
+  mutate(CRASH_Route.Class = fct_na_value_to_level(CRASH_Route.Class, level = "Unknown"))
+
+#CRASH_Light.Condition
+#Add Other to Unknown
+injury_data <- injury_data %>%
+  mutate(CRASH_Light.Condition = recode(CRASH_Light.Condition,
+                                        "Other" = "Unknown"))
+
+#CRASH_Road.Surface.Condition
+#Add Other to Unknown
+injury_data <- injury_data %>%
+  mutate(CRASH_Road.Surface.Condition = recode(CRASH_Road.Surface.Condition,
+                                               "Other" = "Unknown"))
+#CRASH_CRASH.Specific.Location
+#Add Other to Unknown 
+injury_data <- injury_data %>%
+  mutate(CRASH_Crash.Specific.Location = recode(CRASH_Crash.Specific.Location,
+                                                "Other" = "Unknown"))
+
+#CRASH_Highway.Type..FHWA
+#Add NA to Unknown
+injury_data <- injury_data %>%
+  mutate(CRASH_Highway.Type..FHWA. = fct_na_value_to_level(CRASH_Highway.Type..FHWA., level = "Unknown"))
+
+#Vehicle_Roadway.Grade
+#Add NA to Unknown
+injury_data <- injury_data %>%
+  mutate(VEHICLE_Roadway.Grade = fct_na_value_to_level(VEHICLE_Roadway.Grade, level = "Unknown"))
+
+#Vehicle_Body.Type
+#Add NA to Unknown
+injury_data <- injury_data %>%
+  mutate(VEHICLE_Body.Type = fct_na_value_to_level(VEHICLE_Body.Type, level = "Unknown"))
+#Add Other to Unknown
+injury_data <- injury_data %>%
+  mutate(VEHICLE_Body.Type = recode(VEHICLE_Body.Type,
+                                    "Other" = "Unknown"))
+
+#DRIVER_Gender.y
+#Add NA to Unknown
+injury_data <- injury_data %>%
+  mutate(DRIVER_Gender.y = recode(DRIVER_Gender.y,
+                                  "NA" = "Unknown"))
+
+#DRIVER_Condition.at.Time.of.Crash.y
+#Add NA to the unknown category
+injury_data <- injury_data %>%
+  mutate(DRIVER_Condition.at.Time.of.Crash.y = fct_na_value_to_level(DRIVER_Condition.at.Time.of.Crash.y, level = "Unknown"))
+#Add Other and Not Applicable to the Unknown category
+injury_data <- injury_data %>%
+  mutate(DRIVER_Condition.at.Time.of.Crash.y = recode(DRIVER_Condition.at.Time.of.Crash.y, 
+                                                      "Other" = "Unknown",
+                                                      "Not Applicable" = "Unknown",
+                                                      "NA" = "Unknown"))
+
+#DRIVER_Speeding.Related.y
+#Add NA to the Unknown category
+injury_data <- injury_data %>%
+  mutate(DRIVER_Speeding.Related.y = fct_na_value_to_level(DRIVER_Speeding.Related.y, level = "Unknown"))
+#Convert the feature to the categories Speeding, Not Speeding, Unknown
+injury_data <- injury_data %>%
+  mutate(DRIVER_Speeding.Related.y = recode(DRIVER_Speeding.Related.y,
+                                            "Exceeded Speed Limit" = "Speeding",
+                                            "NA" = "Unknown",
+                                            "No" = "Not Speeding",
+                                            "Racing" = "Speeding",
+                                            "Too Fast for Conditions" = "Speeding"))
+
+#Driver_Driver.Actions.1.y
+#Add NA to the Unknown category
+injury_data <- injury_data %>%
+  mutate(DRIVER_Driver.Actions.1.y = fct_na_value_to_level(DRIVER_Driver.Actions.1.y, level = "Unknown"))
+#Add NA and Not Applicable to Unknwon
+injury_data <- injury_data %>%
+  mutate(DRIVER_Driver.Actions.1.y = recode(DRIVER_Driver.Actions.1.y,
+                                            "NA" = "Unknown",
+                                            "Not Applicable" = "Unknown"))
+injury_data <- injury_data %>%
+  mutate(DRIVER_Driver.Actions.1.y = fct_collapse(DRIVER_Driver.Actions.1.y,
+                                                  `Violated Traffic Rules` = c("Disregarded Other Road Markings", "Disregarded Other Traffic Sign", "Failed to Keep in Proper Lane", "Failed to Yield Right-of-Way", "Ran Red Light", "Ran Stop Sign", "Wrong Side or Wrong Way"),
+                                                  `Driving Error` = c("Followed Too Closely", "Improper Backing", "Improper Passing", "Improper Turn", "Over-Correcting/Over-Steering", "Swerved or Avoided Due to Wind, Slippery Surface, Motor Vehicle, Object, Non-Motorist in Roadway, etc.", "Ran Off Roadway"),
+                                                  `Negligent Driving` = c("Operated Motor Vehicle in Inattentive, Careless, Negligent, or Erratic Manner", "Operated Motor Vehicle in Reckless or Aggressive Manner")))
+
+#DRVIER_Driver.Distracted.By.y
+#Add NA to the Unknown category
+injury_data <- injury_data %>%
+  mutate(DRIVER_Driver.Distracted.By.y = fct_na_value_to_level(DRIVER_Driver.Distracted.By.y, level = "Unknown if Distracted"))
+#Combine the feature into categories Distracted, Not Distracted, Unkown if Distracted
+injury_data <- injury_data %>%
+  mutate(DRIVER_Driver.Distracted.By.y = recode(DRIVER_Driver.Distracted.By.y,
+                                                "Manually Operating an Electronic Communication Device (texting, typing, dialing)" = "Distracted",
+                                                "NA" = "Unknown if Distracted",
+                                                "Other Activity, Electronic Device" = "Distracted",
+                                                "Outside the Vehicle (includes unspecified external distractions)" = "Distracted",
+                                                "Passenger" = "Distracted",
+                                                "Talking on Hand-Held Electronic Device" = "Distracted",
+                                                "Talking on Hands-Free Electronic Device" = "Distracted",
+                                                "Other Inside the Vehicle (eating, personal hygiene, etc.)" = "Distracted"))
+
+#NETWORK_NumberOfThruLanes
+#Add NA to Unknown
+injury_data$NETWORK_NumberOfThruLanes <- as.factor(injury_data$NETWORK_NumberOfThruLanes)
+injury_data <- injury_data %>%
+  mutate(NETWORK_NumberOfThruLanes = fct_na_value_to_level(NETWORK_NumberOfThruLanes, level = "Unknown"))
+
+#VIN_bodyclass
+#Create Unknown category
+injury_data <- injury_data %>%
+  mutate(VIN_bodyclass = recode(VIN_bodyclass,
+                                "0" = "Unknown",
+                                "NA" = "Unknown"))
+
+```
+## Modfify the response variable. 
+``` {r}
+###Clean Response Variable (PEDESTRIAN_Injury.Status is the response variable)
+
+#aggregate the feature such that it only has the categories Severe/Fatal Injury and No/Minor Injury
+
+# Filter out minor and possible injuries so there are only severe/fatal injruies and no injuries
+injury_data <-  injury_data %>% filter(PEDESTRIAN_Injury.Status != "Suspected Minor Injury (B)" & PEDESTRIAN_Injury.Status != "Possible Injury (C)")
+injury_data <- injury_data %>%
+  mutate(PEDESTRIAN_Injury.Status = recode(PEDESTRIAN_Injury.Status,
+                                           "Fatal Injury (K)" = "Suspected Serious/Fatal Injury (A/K)",
+                                           "Suspected Serious Injury (A)" = "Suspected Serious/Fatal Injury (A/K)"))
+injury_data$PEDESTRIAN_Injury.Status <- droplevels(injury_data$PEDESTRIAN_Injury.Status)
+#Remove any remaining null values
+injury_data <- na.omit(injury_data)
+```
+## Create the training and test sets. 
+```{r}
+#Split the data into test and training sets
+train <- injury_data %>%
+  sample_n(floor(nrow(injury_data)*0.7))
+
+test <- injury_data %>%
+  setdiff(train)
+```
+# 2. Classification Tree
+```{r}
+library(tree)
+library(dplyr)
+library(rpart.plot)
+
+###Fit classification decision tree
+
+
+
+#Fit the Classification Decision Tree
+tree_injury <- rpart(PEDESTRIAN_Injury.Status ~ ., train)
+
+#Plot the tree
+rpart.plot(tree_injury)
+#text(tree_injury, pretty = 0)
+
+#Evaluating the performance of the tree
+test$tree_pred <- predict(tree_injury, test, type = "class")
+table(test$tree_pred, test$PEDESTRIAN_Injury.Status)
+
+#Prune the tree
+#Plot the error rate as a function of size
+plot(tree_injury$cptable[, "nsplit"],
+     tree_injury$cptable[, "xerror"],
+     type = "b")
+
+#pruning 
+cp_table <- tree_injury$cptable
+best_cp <- cp_table[cp_table[, "nsplit"] == 5, "CP"][1]
+prune_injury <- prune(tree_injury, cp = best_cp)
+rpart.plot(prune_injury, type = 2, extra = 104)
+
+#prune_injury <- prune.misclass(tree_injury, best = 3)
+#plot(prune_injury)
+#text(prune_injury, pretty = 0)
+
+#Evaluate the Tree after pruning
+test$tree_pred_pruned <- predict(prune_injury, test, type = "class")
+table(test$tree_pred_pruned, test$PEDESTRIAN_Injury.Status)
+
+```
+# 3. Random Forest
+``` {r}
+library(randomForest)
+library(ggplot2)
+
+#Fit the model
+set.seed(1)
+rf_injury <- randomForest(PEDESTRIAN_Injury.Status~., 
+                          data = train,
+                          importance = TRUE)
+#Predictions using the test data
+test$random_forest_estimate <- predict(rf_injury, newdata = test)
+table(test$random_forest_estimate, test$PEDESTRIAN_Injury.Status)
+
+#variable importance plot
+varImpPlot(rf_injury)
+
+```
+# 4. Logistic Regression
+``` {r}
+#Fit a logistic regression model with only the the two predictors identified 
+logit1 <- glm(PEDESTRIAN_Injury.Status ~ CRASH_Month + CRASH_Year, data = train, family = binomial)
+
+logit2 <- glm(PEDESTRIAN_Injury.Status ~ 1, data = train, family = binomial)
+anova(logit1, logit2, test="LRT")
+
+logit3 <- glm(PEDESTRIAN_Injury.Status ~ CRASH_Month, family = binomial, data = train)
+
+logit4 <- glm(PEDESTRIAN_Injury.Status ~ CRASH_Year, family = binomial, data = train)
+
+logit5 <- glm(data = train, PEDESTRIAN_Injury.Status ~ CRASH_Year + PEDESTRIAN_Actions.At.Time.Of.Crash, family = binomial)
+
+logit6 <- glm(data = train, PEDESTRIAN_Injury.Status ~ CRASH_Year + PEDESTRIAN_Actions.At.Time.Of.Crash + PEDESTRIAN_Actions.At.Time.Of.Crash*CRASH_Year, family = binomial)
+
+logit7 <- glm(data = train, PEDESTRIAN_Injury.Status ~ PERIOD, family = binomial)
+
+#LRT tests
+anova(logit1, logit2, test="LRT") #Are crash month or crash year associated with pedestrian injury status
+anova(logit3, logit2, test="LRT") #Is crash month associated with pedestrian injury status
+anova(logit4, logit2, test ="LRT") #Is crash year associated with pedestrian injury status
+anova(logit5, logit6, test = "LRT") #Is there an interaction between pedestrian action at time of crash and crash year
+anova(logit7, logit2, test = "LRT") #Is there an associated between PERIOD and pedestrian injury status 
+tree_injury <- rpart(PEDESTRIAN_Injury.Status ~ CRASH_Year, train)
+
+plot(tree_injury$cptable[, "nsplit"],
+     tree_injury$cptable[, "xerror"],
+     type = "b")
+
+cp_table <- tree_injury$cptable
+best_cp <- cp_table[cp_table[, "nsplit"] == 2, "CP"][1]
+prune_injury <- prune(tree_injury, cp = best_cp)
+rpart.plot(prune_injury, type = 2, extra = 104)
+```
