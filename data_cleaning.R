@@ -180,6 +180,11 @@ injury_data <- injury_data %>%
   mutate(DRIVER_Driver.Actions.1.y = recode(DRIVER_Driver.Actions.1.y,
                                             "NA" = "Unknown",
                                             "Not Applicable" = "Unknown"))
+injury_data <- injury_data %>%
+  mutate(DRIVER_Driver.Actions.1.y = fct_collapse(DRIVER_Driver.Actions.1.y,
+                                                  `Violated Traffic Rules` = c("Disregarded Other Road Markings", "Disregarded Other Traffic Sign", "Failed to Keep in Proper Lane", "Failed to Yield Right-of-Way", "Ran Red Light", "Ran Stop Sign", "Wrong Side or Wrong Way"),
+                                                  `Driving Error` = c("Followed Too Closely", "Improper Backing", "Improper Passing", "Improper Turn", "Over-Correcting/Over-Steering", "Swerved or Avoided Due to Wind, Slippery Surface, Motor Vehicle, Object, Non-Motorist in Roadway, etc.", "Ran Off Roadway"),
+                                                  `Negligent Driving` = c("Operated Motor Vehicle in Inattentive, Careless, Negligent, or Erratic Manner", "Operated Motor Vehicle in Reckless or Aggressive Manner")))
 
 #DRVIER_Driver.Distracted.By.y
 #Add NA to the Unknown category
@@ -222,6 +227,13 @@ injury_data <- injury_data %>%
                                            "Suspected Serious Injury (A)" = "Suspected Serious/Fatal Injury (A/K)"))
 injury_data$PEDESTRIAN_Injury.Status <- droplevels(injury_data$PEDESTRIAN_Injury.Status)
 
+
 #Remove any remaining null values
 injury_data <- na.omit(injury_data)
 
+#Split the data into test and training sets
+train <- injury_data %>%
+  sample_n(floor(nrow(injury_data)*0.7))
+
+test <- injury_data %>%
+  setdiff(train)
